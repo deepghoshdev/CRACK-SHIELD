@@ -70,6 +70,17 @@ app.post('/api/cracks', async (req, res) => {
     }
 });
 
+
+// Keep alive - free tier ke liye
+const https = require('https');
+setInterval(() => {
+    https.get('https://crack-shield.onrender.com/api/cracks', (res) => {
+        console.log('🏓 Keep-alive ping sent:', res.statusCode);
+    }).on('error', (err) => {
+        console.log('Keep-alive error:', err.message);
+    });
+}, 600000); // har 10 minute mein
+
 server.listen(PORT, () => {
     console.log(`🛡️ CrackShield Server is running on: http://localhost:${PORT}`);
 });

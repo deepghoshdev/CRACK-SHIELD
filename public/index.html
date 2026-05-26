@@ -221,6 +221,7 @@
 </style>
 </head>
 <body>
+<div id="audio-init" onclick="initAudio()" style="display:none"></div>
 
 <!-- REAL-TIME ALERT BANNER -->
 <div id="alert-banner">🚨 CRACK DETECTED ON TRACK! — LOCATION UPDATED</div>
@@ -313,7 +314,12 @@
   let allData = [];
 
   // ===== SOCKET.IO REAL-TIME =====
-  const socket = io();
+ const socket = io({
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionAttempts: 10,
+    timeout: 5000
+});
 
   socket.on('connect', () => {
     document.getElementById('socket-status').textContent = 'LIVE ●';
@@ -436,8 +442,15 @@
     }
   }
 
-  fetchData();
+ fetchData();
   setInterval(fetchData, 30000);
+
+  // Page load pe audio context initialize karo
+  let audioCtx = null;
+  function initAudio() {
+      audioCtx = new AudioContext();
+  }
+  document.addEventListener('click', initAudio, { once: true });
 </script>
 </body>
 </html>
