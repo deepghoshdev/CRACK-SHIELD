@@ -16,6 +16,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+// Map page route
+app.get('/map', (req, res) => {
+    res.sendFile(require('path').join(__dirname, 'public', 'map.html'));
+});
+
 // MongoDB Connect
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("💾 MongoDB Atlas Cloud Connected Successfully!"))
