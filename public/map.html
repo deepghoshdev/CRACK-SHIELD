@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CrackShield — Live Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@600&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#060a0f; color:#c9d8e8; font-family:'Rajdhani',sans-serif; height:100vh; display:flex; flex-direction:column; }
+
+  header {
+    height:60px; background:rgba(6,10,15,0.95);
+    border-bottom:1px solid #1a2d44;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 32px; flex-shrink:0;
+  }
+
+  .logo { font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; color:#fff; letter-spacing:3px; }
+  .logo span { color:#00e5ff; }
+
+  .back-btn {
+    padding:7px 20px; background:transparent;
+    border:1px solid #00e5ff; color:#00e5ff;
+    font-family:'Rajdhani',sans-serif; font-size:13px;
+    font-weight:600; letter-spacing:2px; cursor:pointer;
+    text-decoration:none; text-transform:uppercase;
+    transition:all 0.2s;
+    clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+  }
+  .back-btn:hover { background:#00e5ff; color:#060a0f; }
+
+  .map-stats {
+    display:flex; gap:1px; background:#1a2d44;
+    border-bottom:1px solid #1a2d44; flex-shrink:0;
+  }
+
+  .map-stat {
+    background:#0b1117; padding:12px 28px; flex:1;
+  }
+
+  .map-stat-label {
+    font-family:'Share Tech Mono',monospace;
+    font-size:9px; color:#4a6380; letter-spacing:2px; text-transform:uppercase;
+  }
+
+  .map-stat-value {
+    font-family:'Orbitron',sans-serif;
+    font-size:20px; font-weight:700; color:#fff; margin-top:2px;
+  }
+
+  .map-stat-value.red { color:#ff4b4b; }
+  .map-stat-value.cyan { color:#00e5ff; }
+  .map-stat-value.green { color:#00ff9d; }
+
+  #map { flex:1; z-index:1; }
+
+  /* Leaflet popup custom style */
+  .crack-popup {
+    font-family:'Rajdhani',sans-serif;
+    font-size:13px;
+    line-height:1.6;
+  }
+  .crack-popup strong {
+    font-family:'Orbitron',sans-serif;
+    font-size:11px;
+    color:#ff4b4b;
+    letter-spacing:1px;
+  }
+  .crack-popup a {
+    color:#00e5ff;
+    text-decoration:none;
+    font-weight:600;
+  }
+
+  .loading-overlay {
+    position:fixed; inset:0;
+    background:#060a0f;
+    display:flex; align-items:center; justify-content:center;
+    z-index:999;
+    flex-direction:column; gap:16px;
+  }
+
+  .loading-text {
+    font-family:'Share Tech Mono',monospace;
+    font-size:14px; color:#00e5ff; letter-spacing:3px;
+  }
+
+  .loading-text::after {
+    content:'';
+    animation:dots 1.2s infinite;
+  }
+
+  @keyframes dots {
+    0%  { content:''; }
+    33% { content:'.'; }
+    66% { content:'..'; }
+    100%{ content:'...'; }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <svg width="48" height="48" viewBox="0 0 40 40" fill="none">
+    <rect x="1" y="1" width="38" height="38" rx="4" stroke="#00e5ff" stroke-width="1.5"/>
+    <path d="M8 20L14 20L16 14L20 26L24 14L26 20L32 20" stroke="#00e5ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="20" cy="20" r="3" fill="#ff4b4b"/>
+  </svg>
+  <div class="loading-text">LOADING MAP</div>
+</div>
+
+<header>
+  <div class="logo">CRACK<span>SHIELD</span> — LIVE MAP</div>
+  <a href="/" class="back-btn">← Dashboard</a>
+</header>
+
+<div class="map-stats">
+  <div class="map-stat">
+    <div class="map-stat-label">Total Cracks</div>
+    <div class="map-stat-value red" id="s-total">—</div>
+  </div>
+  <div class="map-stat">
+    <div class="map-stat-label">Today</div>
+    <div class="map-stat-value cyan" id="s-today">—</div>
+  </div>
+  <div class="map-stat">
+    <div class="map-stat-label">Last Detection</div>
+    <div class="map-stat-value green" id="s-last">—</div>
+  </div>
+  <div class="map-stat">
+    <div class="map-stat-label">Coverage Area</div>
+    <div class="map-stat-value" id="s-area">—</div>
+  </div>
+</div>
+
+<div id="map"></div>
+
+<script>
+  // Map initialize
+  const map = L.map('map', {
+    center: [22.5726, 88.3639],
+    zoom: 5,
+    zoomControl: true
+  });
+
+  // Dark theme map tiles
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CARTO',
+    subdomains: 'abcd',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Custom red marker
+  const crackIcon = L.divIcon({
+    html: `<div style="
+      width:14px; height:14px;
+      background:#ff4b4b;
+      border:2px solid #fff;
+      border-radius:50%;
+      box-shadow:0 0 8px rgba(255,75,75,0.8);
+    "></div>`,
+    className:'',
+    iconSize:[14,14],
+    iconAnchor:[7,7]
+  });
+
+  // Latest crack marker (bigger, pulsing)
+  const latestIcon = L.divIcon({
+    html: `<div style="
+      width:20px; height:20px;
+      background:#ff4b4b;
+      border:3px solid #fff;
+      border-radius:50%;
+      box-shadow:0 0 15px rgba(255,75,75,1);
+      animation:pulse 1.5s infinite;
+    "></div>
+    <style>
+      @keyframes pulse {
+        0%,100%{transform:scale(1);opacity:1}
+        50%{transform:scale(1.4);opacity:0.7}
+      }
+    </style>`,
+    className:'',
+    iconSize:[20,20],
+    iconAnchor:[10,10]
+  });
+
+  async function loadMap() {
+    try {
+      const res = await fetch('/api/cracks');
+      const json = await res.json();
+      document.getElementById('loading').style.display = 'none';
+
+      if (!json.success || json.data.length === 0) return;
+
+      const data = json.data;
+      const bounds = [];
+
+      data.forEach((crack, i) => {
+        const lat = parseFloat(crack.latitude);
+        const lng = parseFloat(crack.longitude);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        const marker = L.marker([lat, lng], {
+          icon: i === 0 ? latestIcon : crackIcon
+        }).addTo(map);
+
+        marker.bindPopup(`
+          <div class="crack-popup">
+            <strong>⚠ CRACK DETECTED</strong><br><br>
+            📅 <b>Date:</b> ${crack.date}<br>
+            🕐 <b>Time:</b> ${crack.time}<br>
+            📍 <b>Lat:</b> ${crack.latitude}<br>
+            📍 <b>Lng:</b> ${crack.longitude}<br><br>
+            <a href="${crack.googleMapLink}" target="_blank">🗺 Open in Google Maps</a>
+          </div>
+        `);
+
+        bounds.push([lat, lng]);
+      });
+
+      // Fit map to all markers
+      if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [40, 40] });
+      }
+
+      // Stats update
+      document.getElementById('s-total').textContent = data.length;
+      const today = new Date().toISOString().split('T')[0];
+      const todayCount = data.filter(d => d.date === today).length;
+      document.getElementById('s-today').textContent = todayCount;
+      document.getElementById('s-last').textContent = data[0].time;
+
+      // Area coverage
+      if (bounds.length > 1) {
+        const lats = bounds.map(b => b[0]);
+        const lngs = bounds.map(b => b[1]);
+        const latRange = (Math.max(...lats) - Math.min(...lats)).toFixed(2);
+        const lngRange = (Math.max(...lngs) - Math.min(...lngs)).toFixed(2);
+        document.getElementById('s-area').textContent = latRange + '° × ' + lngRange + '°';
+      } else {
+        document.getElementById('s-area').textContent = 'Single Point';
+      }
+
+    } catch(err) {
+      document.getElementById('loading').style.display = 'none';
+      console.error(err);
+    }
+  }
+
+  loadMap();
+</script>
+</body>
+</html>
