@@ -58,15 +58,21 @@ app.post('/api/cracks', async (req, res) => {
 
         const googleMapLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
 
-        const newCrack = new Crack({ date, time, latitude, longitude, googleMapLink });
+// Severity auto-detect logic
+        const sensorValue = parseFloat(req.body.sensor || req.query.sensor || 0);
+        let severity = 'MINOR';
+        if (sensorValue >= 5) severity = 'CRITICAL';
+        else if (sensorValue >= 2) severity = 'MODERATE';
+
+        const newCrack = new Crack({ date, time, latitude, longitude, googleMapLink, severity });
         await newCrack.save();
 
         console.log("⚠️ NEW CRACK SAVED:", newCrack);
 
         // 🔥 Real-time alert to all dashboards
-        io.emit('crack_detected', {
-            date, time, latitude, longitude, googleMapLink
-        });
+       io.emit('crack_detected', {
+    date, time, latitude, longitude, googleMapLink, severity
+});
 
         res.status(201).json({ success: true, message: "Crack data saved!", data: newCrack });
 

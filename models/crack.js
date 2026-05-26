@@ -7,6 +7,11 @@ const CrackSchema = new mongoose.Schema({
     latitude: { type: String, required: true },
     longitude: { type: String, required: true },
     googleMapLink: { type: String, required: true },
+    severity: { 
+    type: String, 
+    enum: ['MINOR', 'MODERATE', 'CRITICAL'], 
+    default: 'MINOR' 
+},
     createdAt: { type: Date, default: Date.now } // Taaki pta rahe kab entry hui
 });
 
