@@ -293,6 +293,7 @@
           <th>Time</th>
           <th>Latitude</th>
           <th>Longitude</th>
+          <th>⚡ Severity</th>
           <th>📍 Location Map</th>
         </tr>
       </thead>
@@ -419,6 +420,9 @@
       <td class="td-mono">${row.time}</td>
       <td><span class="coord-badge">▲ ${row.latitude}</span></td>
       <td><span class="coord-badge">▶ ${row.longitude}</span></td>
+      <td>
+      <span style="padding:4px 12px;font-family:'Share Tech Mono',monospace;font-size:11px;font-weight:700;letter-spacing:2px;border-radius:2px;background:${row.severity==='CRITICAL'?'rgba(255,75,75,0.2)':row.severity==='MODERATE'?'rgba(255,165,0,0.2)':'rgba(255,220,0,0.2)'};color:${row.severity==='CRITICAL'?'#ff4b4b':row.severity==='MODERATE'?'#ffa500':'#ffd700'};border:1px solid ${row.severity==='CRITICAL'?'#ff4b4b':row.severity==='MODERATE'?'#ffa500':'#ffd700'};">${row.severity||'MINOR'}</span>
+    </td>
       <td>
         <a class="map-btn" href="${row.googleMapLink}" target="_blank">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
