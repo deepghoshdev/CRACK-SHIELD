@@ -3,7 +3,9 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const http = require('http');
+const https = require('https');
 const { Server } = require('socket.io');
+const nodemailer = require('nodemailer');
 const Crack = require('./models/crack.js');
 
 const app = express();
@@ -26,6 +28,84 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("💾 MongoDB Atlas Cloud Connected Successfully!"))
     .catch(err => console.error("❌ Database Connection Error:", err));
 
+// Email Transporter
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
+
+// Email Alert Function
+async function sendCrackAlert(crackData) {
+    const severityColor = {
+        'CRITICAL': '#ff0000',
+        'MODERATE': '#ff9900',
+        'MINOR': '#ffcc00'
+    };
+    const color = severityColor[crackData.severity] || '#ff4444';
+
+    const mailOptions = {
+        from: `"🛡️ CrackShield Alert" <${process.env.EMAIL_USER}>`,
+        to: process.env.ALERT_EMAIL,
+        subject: `🚨 ${crackData.severity} ALERT — Railway Track Crack Detected!`,
+        html: `
+        <div style="font-family: Arial; background: #1a1a1a; color: white; padding: 30px; border-radius: 12px; max-width: 600px;">
+            <div style="background: ${color}; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px;">
+                <h1 style="margin:0; font-size: 24px;">⚠️ ${crackData.severity} CRACK DETECTED!</h1>
+                <p style="margin:5px 0 0 0;">Immediate Inspection Required</p>
+            </div>
+            <table style="width:100%; border-collapse: collapse;">
+                <tr style="border-bottom: 1px solid #333;">
+                    <td style="padding:12px; color:#aaa;">📅 Date</td>
+                    <td style="padding:12px; font-weight:bold;">${crackData.date}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #333;">
+                    <td style="padding:12px; color:#aaa;">⏰ Time</td>
+                    <td style="padding:12px; font-weight:bold;">${crackData.time}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #333;">
+                    <td style="padding:12px; color:#aaa;">📍 Latitude</td>
+                    <td style="padding:12px; font-weight:bold;">${crackData.latitude}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #333;">
+                    <td style="padding:12px; color:#aaa;">📍 Longitude</td>
+                    <td style="padding:12px; font-weight:bold;">${crackData.longitude}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #333;">
+                    <td style="padding:12px; color:#aaa;">⚠️ Severity</td>
+                    <td style="padding:12px;">
+                        <span style="background:${color}; color:white; padding:4px 12px; border-radius:20px; font-weight:bold;">
+                            ${crackData.severity}
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:12px; color:#aaa;">🗺️ Map</td>
+                    <td style="padding:12px;">
+                        <a href="${crackData.googleMapLink}" 
+                           style="background:#4CAF50; color:white; padding:8px 16px; border-radius:5px; text-decoration:none;">
+                           View on Google Maps
+                        </a>
+                    </td>
+                </tr>
+            </table>
+            <div style="margin-top:20px; padding:15px; background:#2a2a2a; border-radius:8px; text-align:center;">
+                <p style="margin:0; color:#aaa; font-size:12px;">🛡️ CrackShield — Railway Track Monitoring System</p>
+            </div>
+        </div>
+        `
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log('📧 Alert email sent to:', process.env.ALERT_EMAIL);
+    } catch (error) {
+        console.error('❌ Email error:', error.message);
+    }
+}
+
 // Socket.io connection
 io.on('connection', (socket) => {
     console.log('📡 Dashboard connected:', socket.id);
@@ -44,7 +124,7 @@ app.get('/api/cracks', async (req, res) => {
     }
 });
 
-// POST - Save new crack + emit real-time alert
+// POST - Save new crack + emit real-time alert + send email
 app.post('/api/cracks', async (req, res) => {
     try {
         const date = req.body.date || req.query.date;
@@ -58,7 +138,7 @@ app.post('/api/cracks', async (req, res) => {
 
         const googleMapLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
 
-// Severity auto-detect logic
+        // Severity auto-detect logic
         const sensorValue = parseFloat(req.body.sensor || req.query.sensor || 0);
         let severity = 'MINOR';
         if (sensorValue >= 5) severity = 'CRITICAL';
@@ -70,9 +150,12 @@ app.post('/api/cracks', async (req, res) => {
         console.log("⚠️ NEW CRACK SAVED:", newCrack);
 
         // 🔥 Real-time alert to all dashboards
-       io.emit('crack_detected', {
-    date, time, latitude, longitude, googleMapLink, severity
-});
+        io.emit('crack_detected', {
+            date, time, latitude, longitude, googleMapLink, severity
+        });
+
+        // 📧 Email alert
+        await sendCrackAlert({ date, time, latitude, longitude, googleMapLink, severity });
 
         res.status(201).json({ success: true, message: "Crack data saved!", data: newCrack });
 
@@ -81,9 +164,7 @@ app.post('/api/cracks', async (req, res) => {
     }
 });
 
-
 // Keep alive - free tier ke liye
-const https = require('https');
 setInterval(() => {
     https.get('https://crack-shield.onrender.com/api/cracks', (res) => {
         console.log('🏓 Keep-alive ping sent:', res.statusCode);
