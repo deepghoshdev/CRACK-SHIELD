@@ -173,6 +173,22 @@ setInterval(() => {
     });
 }, 600000); // har 10 minute mein
 
+// Test Email Route
+app.get('/test-email', async (req, res) => {
+    try {
+        await sendCrackAlert({
+            date: '2026-05-27',
+            time: '08:00 PM',
+            latitude: '22.5726',
+            longitude: '88.3639',
+            googleMapLink: 'https://maps.google.com',
+            severity: 'CRITICAL'
+        });
+        res.json({ message: '✅ Test email sent successfully!' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 server.listen(PORT, () => {
     console.log(`🛡️ CrackShield Server is running on: http://localhost:${PORT}`);
 });
