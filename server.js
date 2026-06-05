@@ -6,6 +6,7 @@ const http = require('http');
 const https = require('https');
 const { Server } = require('socket.io');
 const { Resend } = require('resend');
+const twilio = require('twilio');
 const Crack = require('./models/crack.js');
 
 const app = express();
@@ -14,6 +15,7 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 const PORT = 5000;
 const resend = new Resend(process.env.RESEND_API_KEY);
+const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 app.use(cors());
 app.use(express.json());
@@ -28,6 +30,25 @@ app.get('/map', (req, res) => {
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("💾 MongoDB Atlas Cloud Connected Successfully!"))
     .catch(err => console.error("❌ Database Connection Error:", err));
+
+// WhatsApp Alert Function
+async function sendWhatsAppAlert(crackData) {
+    try {
+        await twilioClient.messages.create({
+            from: 'whatsapp:+14155238886',
+            to: process.env.TWILIO_WHATSAPP_TO,
+            body: `🚨 *CRACK-SHIELD ALERT*\n\n` +
+                  `⚠️ Severity: *${crackData.severity}*\n` +
+                  `📅 Date: ${crackData.date}\n` +
+                  `⏰ Time: ${crackData.time}\n` +
+                  `📍 Location: ${crackData.latitude}, ${crackData.longitude}\n` +
+                  `🗺️ Map: ${crackData.googleMapLink}`
+        });
+        console.log('📱 WhatsApp alert sent!');
+    } catch (error) {
+        console.error('❌ WhatsApp error:', error.message);
+    }
+}
 
 // Email Alert Function
 async function sendCrackAlert(crackData) {
@@ -114,7 +135,7 @@ app.get('/api/cracks', async (req, res) => {
     }
 });
 
-// POST - Save new crack + emit real-time alert + send email
+// POST - Save new crack + emit real-time alert + send email + whatsapp
 app.post('/api/cracks', async (req, res) => {
     try {
         const date = req.body.date || req.query.date;
@@ -147,6 +168,9 @@ app.post('/api/cracks', async (req, res) => {
         // 📧 Email alert
         await sendCrackAlert({ date, time, latitude, longitude, googleMapLink, severity });
 
+        // 📱 WhatsApp alert
+        await sendWhatsAppAlert({ date, time, latitude, longitude, googleMapLink, severity });
+
         res.status(201).json({ success: true, message: "Crack data saved!", data: newCrack });
 
     } catch (error) {
@@ -167,14 +191,31 @@ setInterval(() => {
 app.get('/test-email', async (req, res) => {
     try {
         await sendCrackAlert({
-            date: '2026-05-27',
-            time: '08:00 PM',
+            date: '2026-06-05',
+            time: '10:00 PM',
             latitude: '22.5726',
             longitude: '88.3639',
             googleMapLink: 'https://maps.google.com',
             severity: 'CRITICAL'
         });
         res.json({ message: '✅ Test email sent successfully!' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Test WhatsApp Route
+app.get('/test-whatsapp', async (req, res) => {
+    try {
+        await sendWhatsAppAlert({
+            date: '2026-06-05',
+            time: '10:00 PM',
+            latitude: '22.5726',
+            longitude: '88.3639',
+            googleMapLink: 'https://maps.google.com',
+            severity: 'CRITICAL'
+        });
+        res.json({ message: '✅ Test WhatsApp sent successfully!' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
