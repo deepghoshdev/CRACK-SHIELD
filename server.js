@@ -31,6 +31,44 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("💾 MongoDB Atlas Cloud Connected Successfully!"))
     .catch(err => console.error("❌ Database Connection Error:", err));
 
+// Telegram Alert Function
+async function sendTelegramAlert(crackData) {
+    try {
+        const message =
+            `🛡️ *CRACK-SHIELD ALERT*\n` +
+            `━━━━━━━━━━━━━━━━━━━\n` +
+            `🚨 *${crackData.severity} CRACK DETECTED!*\n\n` +
+            `📅 Date: ${crackData.date}\n` +
+            `⏰ Time: ${crackData.time}\n` +
+            `📍 Latitude: ${crackData.latitude}\n` +
+            `📍 Longitude: ${crackData.longitude}\n` +
+            `⚠️ Severity: *${crackData.severity}*\n\n` +
+            `🗺️ [View on Google Maps](${crackData.googleMapLink})\n\n` +
+            `_Immediate Inspection Required!_`;
+
+        const url = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: process.env.TELEGRAM_CHAT_ID,
+                text: message,
+                parse_mode: 'Markdown'
+            })
+        });
+
+        const data = await response.json();
+        if (data.ok) {
+            console.log('📱 Telegram alert sent!');
+        } else {
+            console.error('❌ Telegram error:', data.description);
+        }
+    } catch (error) {
+        console.error('❌ Telegram error:', error.message);
+    }
+}
+
 // WhatsApp Alert Function
 async function sendWhatsAppAlert(crackData) {
     try {
@@ -98,7 +136,7 @@ async function sendCrackAlert(crackData) {
                     <tr>
                         <td style="padding:12px; color:#aaa;">🗺️ Map</td>
                         <td style="padding:12px;">
-                            <a href="${crackData.googleMapLink}" 
+                            <a href="${crackData.googleMapLink}"
                                style="background:#4CAF50; color:white; padding:8px 16px; border-radius:5px; text-decoration:none;">
                                View on Google Maps
                             </a>
@@ -135,7 +173,7 @@ app.get('/api/cracks', async (req, res) => {
     }
 });
 
-// POST - Save new crack + emit real-time alert + send email + whatsapp
+// POST - Save new crack + emit real-time alert + send email + telegram + whatsapp
 app.post('/api/cracks', async (req, res) => {
     try {
         const date = req.body.date || req.query.date;
@@ -168,7 +206,10 @@ app.post('/api/cracks', async (req, res) => {
         // 📧 Email alert
         await sendCrackAlert({ date, time, latitude, longitude, googleMapLink, severity });
 
-        // 📱 WhatsApp alert
+        // 📱 Telegram alert
+        await sendTelegramAlert({ date, time, latitude, longitude, googleMapLink, severity });
+
+        // 💬 WhatsApp alert
         await sendWhatsAppAlert({ date, time, latitude, longitude, googleMapLink, severity });
 
         res.status(201).json({ success: true, message: "Crack data saved!", data: newCrack });
@@ -191,8 +232,8 @@ setInterval(() => {
 app.get('/test-email', async (req, res) => {
     try {
         await sendCrackAlert({
-            date: '2026-06-05',
-            time: '10:00 PM',
+            date: '2026-06-06',
+            time: '03:00 AM',
             latitude: '22.5726',
             longitude: '88.3639',
             googleMapLink: 'https://maps.google.com',
@@ -204,12 +245,29 @@ app.get('/test-email', async (req, res) => {
     }
 });
 
+// Test Telegram Route
+app.get('/test-telegram', async (req, res) => {
+    try {
+        await sendTelegramAlert({
+            date: '2026-06-06',
+            time: '03:00 AM',
+            latitude: '22.5726',
+            longitude: '88.3639',
+            googleMapLink: 'https://maps.google.com',
+            severity: 'CRITICAL'
+        });
+        res.json({ message: '✅ Test Telegram sent successfully!' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Test WhatsApp Route
 app.get('/test-whatsapp', async (req, res) => {
     try {
         await sendWhatsAppAlert({
-            date: '2026-06-05',
-            time: '10:00 PM',
+            date: '2026-06-06',
+            time: '03:00 AM',
             latitude: '22.5726',
             longitude: '88.3639',
             googleMapLink: 'https://maps.google.com',
